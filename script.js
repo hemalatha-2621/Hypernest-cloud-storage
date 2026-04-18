@@ -109,12 +109,15 @@ async function handleAuth(isLogin = true) {
     const email = document.getElementById('email')?.value.trim();
     const password = document.getElementById('password').value;
     
-    if (!email || !password) {
-        showAuthMessage('Please enter both email and password');
-        return;
-    }
+    const loginBtn = document.getElementById('login-btn');
+    const signupBtn = document.getElementById('signup-btn');
+    const originalBtnText = isLogin ? loginBtn.innerHTML : signupBtn.innerHTML;
+    const activeBtn = isLogin ? loginBtn : signupBtn;
 
     try {
+        activeBtn.disabled = true;
+        activeBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing...';
+        
         if (isLogin) {
             const { data, error } = await client.auth.signInWithPassword({ email, password });
             if (error) throw error;
@@ -139,6 +142,10 @@ async function handleAuth(isLogin = true) {
         console.error('Auth error:', error);
         showToast(error.message, 'error');
         showAuthMessage(error.message, true);
+    } finally {
+        activeBtn.disabled = false;
+        activeBtn.innerHTML = originalBtnText;
+    }
     }
 }
 
