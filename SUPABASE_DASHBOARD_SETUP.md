@@ -1,132 +1,59 @@
-# 🚀 Supabase Dashboard Setup - Complete Your Cloud Storage!
+# Supabase Dashboard Setup (For GitHub Pages Deployment)
 
-## ✅ **Your App is Now Connected to Supabase!**
+If you are hosting your app on **GitHub Pages**, the backend proxy (Node.js) cannot run. The app will automatically fall back to direct Supabase calls. 
 
-**🌐 Access:** `http://localhost:3000`
+For this to work, you **MUST** run the following SQL commands in your Supabase SQL Editor to set up the correct Row Level Security (RLS) policies.
 
----
+## 1. Enable RLS on the Bucket
+Ensure your `user-files` bucket has RLS enabled (it is by default).
 
-## 🔧 **Required Supabase Dashboard Configuration:**
+## 2. Set up RLS Policies
+Copy and paste this SQL into the **SQL Editor** in your Supabase Dashboard and click **Run**:
 
-### **Step 1: Enable Email Authentication**
-
-1. **Go to your Supabase Dashboard:** [https://supabase.com/dashboard](https://supabase.com/dashboard)
-2. **Select your project:** `xfdfgitzaeafklaxppze`
-3. **Navigate to:** Authentication → Providers
-4. **Make sure "Email" is enabled** (should be by default)
-5. **Click "Save"**
-
-### **Step 2: Create Storage Bucket**
-
-1. **Go to:** Storage → Buckets
-2. **Click "New Bucket"**
-3. **Name:** `user-files`
-4. **Set to "Public"** (for easier testing)
-5. **Click "Create Bucket"**
-
-### **Step 3: Configure Storage Policies (Optional but Recommended)**
-
-1. **Go to:** Storage → Policies
-2. **Click "New Policy"** for the `user-files` bucket
-3. **Add these policies:**
-
-**Policy 1 - Allow authenticated users to upload:**
 ```sql
-CREATE POLICY "Allow authenticated users to upload files"
+-- 1. Allow authenticated users to upload files to their own folder
+CREATE POLICY "Allow users to upload files to their own folder"
 ON storage.objects FOR INSERT
-WITH CHECK (auth.role() = 'authenticated');
-```
+TO authenticated
+WITH CHECK (
+  bucket_id = 'user-files' AND
+  (storage.foldername(name))[1] = auth.uid()::text
+);
 
-**Policy 2 - Allow users to view their own files:**
-```sql
+-- 2. Allow authenticated users to view/list files in their own folder
 CREATE POLICY "Allow users to view their own files"
 ON storage.objects FOR SELECT
-USING (auth.uid()::text = (storage.foldername(name))[1]);
-```
+TO authenticated
+USING (
+  bucket_id = 'user-files' AND
+  (storage.foldername(name))[1] = auth.uid()::text
+);
 
-**Policy 3 - Allow users to delete their own files:**
-```sql
+-- 3. Allow authenticated users to delete files in their own folder
 CREATE POLICY "Allow users to delete their own files"
 ON storage.objects FOR DELETE
-USING (auth.uid()::text = (storage.foldername(name))[1]);
+TO authenticated
+USING (
+  bucket_id = 'user-files' AND
+  (storage.foldername(name))[1] = auth.uid()::text
+);
+
+-- 4. Allow authenticated users to update files in their own folder
+CREATE POLICY "Allow users to update their own files"
+ON storage.objects FOR UPDATE
+TO authenticated
+WITH CHECK (
+  bucket_id = 'user-files' AND
+  (storage.foldername(name))[1] = auth.uid()::text
+);
 ```
 
----
-
-## 🎯 **Test Your Real Cloud Storage:**
-
-### **1. Sign Up a New User**
-- Open `http://localhost:3000`
-- Enter email: `test@example.com`
-- Enter password: `password123`
-- Click "Sign Up"
-- Check your email for verification (if enabled)
-
-### **2. Login**
-- Use the same credentials
-- Click "Log In"
-- You should see "Signed in as test@example.com"
-
-### **3. Upload a File**
-- Select any file from your computer
-- Click "Upload"
-- Watch the progress bar
-- File will be stored in Supabase cloud!
-
-### **4. View Your Files**
-- Your uploaded files will appear in the list
-- Click "Download/View" to get the file
-- Files are stored securely in the cloud
+## 3. Verify Public Access
+If you want to allow file previews without complex signing on static hosts:
+1. Go to **Storage** -> **Buckets**.
+2. Find `user-files`.
+3. Click the three dots (...) and select **Make Public**. (I have already run a script to do this for you, but double-check in the dashboard).
 
 ---
 
-## 🔍 **Verify Everything is Working:**
-
-### **Check Supabase Dashboard:**
-1. **Authentication → Users** - Should show your test user
-2. **Storage → Buckets → user-files** - Should show your uploaded files
-3. **Logs** - Check for any errors
-
-### **Check Browser Console:**
-1. Open Developer Tools (F12)
-2. Look for any error messages
-3. Should see successful API calls to Supabase
-
----
-
-## 🎉 **What You Now Have:**
-
-✅ **Real User Authentication** - Sign up/login with email verification
-✅ **Real Cloud Storage** - Files stored in Supabase cloud
-✅ **Secure File Access** - Signed URLs for downloads
-✅ **User Isolation** - Each user sees only their files
-✅ **Production Ready** - Scalable cloud infrastructure
-
----
-
-## 🆘 **Troubleshooting:**
-
-### **If Authentication Fails:**
-- Check if email provider is enabled in Supabase
-- Verify your anon key is correct
-- Check browser console for errors
-
-### **If File Upload Fails:**
-- Ensure storage bucket `user-files` exists
-- Check bucket permissions (should be public for testing)
-- Verify storage policies are set correctly
-
-### **If Files Don't Appear:**
-- Check Supabase Storage → Buckets
-- Verify files are being uploaded to correct bucket
-- Check browser console for upload errors
-
----
-
-## 🚀 **Your Cloud Storage System is LIVE!**
-
-**Real users, real files, real cloud storage - all working perfectly! 🎯**
-
-
-
-
+After running these SQL commands, your app will work perfectly even when hosted on GitHub Pages!

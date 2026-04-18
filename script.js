@@ -1,5 +1,5 @@
 const SUPABASE_URL = "https://niyuchsndxijwdvgmghb.supabase.co";
-const SUPABASE_ANON_KEY = "sb_publishable_12iHo_t0Ltm9rCSJkqXu_g_KNYO7yYj";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5peXVjaHNuZHhpandkdmdtZ2hiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY1MDQwNzUsImV4cCI6MjA5MjA4MDA3NX0.uBClEYafax91KXSlCDuppfJXhOK8eWmkb18Km2MVfzQ";
 const STORAGE_BUCKET = "user-files";
 
 // Initialize the Supabase client
@@ -8,6 +8,11 @@ const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 let currentUser = null;
 let currentFiles = [];
 let searchTimeout = null;
+
+// Helper to determine if we should use the local proxy or direct Supabase
+const IS_GITHUB_PAGES = window.location.hostname.includes('github.io');
+const PROXY_PATH = IS_GITHUB_PAGES ? null : (window.location.pathname.includes('.html') ? '' : './');
+
 
 // --- Utility Functions ---
 
@@ -168,6 +173,7 @@ async function loadFiles(searchQuery = '', sortBy = 'name-asc') {
         // Try proxy list first
         let result;
         try {
+            if (IS_GITHUB_PAGES) throw new Error('GitHub Pages: Skipping proxy');
             const response = await fetch(`api/list-proxy?userId=${currentUser.id}`);
             const contentType = response.headers.get("content-type");
             if (response.ok && contentType && contentType.includes("application/json")) {
@@ -258,6 +264,7 @@ async function handlePreview(fileName) {
     try {
         let url;
         try {
+            if (IS_GITHUB_PAGES) throw new Error('GitHub Pages: Skipping proxy');
             const response = await fetch('api/sign-proxy', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -315,6 +322,7 @@ async function handleDownload(fileName) {
     try {
         let url;
         try {
+            if (IS_GITHUB_PAGES) throw new Error('GitHub Pages: Skipping proxy');
             const response = await fetch('api/sign-proxy', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -369,6 +377,7 @@ async function handleDelete(fileName) {
         confirmBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Deleting...';
         try {
             try {
+                if (IS_GITHUB_PAGES) throw new Error('GitHub Pages: Skipping proxy');
                 const response = await fetch('api/delete-proxy', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -438,7 +447,7 @@ async function handleUpload(files) {
     const uploadPromises = Array.from(files).map(async file => {
         try {
             try {
-                // Try proxy upload first
+                if (IS_GITHUB_PAGES) throw new Error('GitHub Pages: Skipping proxy');
                 const formData = new FormData();
                 formData.append('file', file);
                 formData.append('userId', currentUser.id);
