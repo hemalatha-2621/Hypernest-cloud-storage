@@ -1,5 +1,5 @@
 const SUPABASE_URL = "https://niyuchsndxijwdvgmghb.supabase.co";
-const SUPABASE_ANON_KEY = "sb_publishable_12iHo_t0Ltm9rCSJkqXu_g_KNYO7yYj";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5peXVjaHNuZHhpandkdmdtZ2hiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY1MDQwNzUsImV4cCI6MjA5MjA4MDA3NX0.uBClEYafax91KXSlCDuppfJXhOK8eWmkb18Km2MVfzQ";
 const STORAGE_BUCKET = "user-files";
 
 let supabase = null;
@@ -145,7 +145,6 @@ async function handleAuth(isLogin = true) {
     } finally {
         activeBtn.disabled = false;
         activeBtn.innerHTML = originalBtnText;
-    }
     }
 }
 
