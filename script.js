@@ -200,10 +200,15 @@ async function loadFiles(searchQuery = '', sortBy = 'name-asc') {
         if (isBackendAvailable) {
             try {
                 const response = await fetch(`api/list-proxy?userId=${currentUser.id}`);
-                result = await response.json();
+                const contentType = response.headers.get("content-type");
+                if (response.ok && contentType && contentType.includes("application/json")) {
+                    result = await response.json();
+                } else {
+                    isBackendAvailable = false;
+                }
             } catch (e) {
                 console.warn('Proxy call failed, trying direct:', e);
-                isBackendAvailable = false; // Disable for future calls if crashed
+                isBackendAvailable = false;
             }
         }
 
