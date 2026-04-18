@@ -10,8 +10,33 @@ function getSupabase() {
         supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
         return supabase;
     }
-    console.error('Supabase library not loaded yet!');
+    showToast('Supabase library not loaded yet!', 'error');
     return null;
+}
+
+// Notifications
+function showToast(message, type = 'success') {
+    let container = document.querySelector('.toast-container');
+    if (!container) {
+        container = document.createElement('div');
+        container.className = 'toast-container';
+        document.body.appendChild(container);
+    }
+
+    const toast = document.createElement('div');
+    const icon = type === 'success' ? 'check-circle' : 'exclamation-circle';
+    toast.className = `toast toast-${type}`;
+    toast.innerHTML = `
+        <i class="fas fa-${icon}"></i>
+        <div class="toast-message">${message}</div>
+    `;
+
+    container.appendChild(toast);
+
+    setTimeout(() => {
+        toast.style.animation = 'toastOut 0.4s forwards';
+        setTimeout(() => toast.remove(), 400);
+    }, 4000);
 }
 
 let currentUser = null;
@@ -94,7 +119,7 @@ async function handleAuth(isLogin = true) {
             const { data, error } = await client.auth.signInWithPassword({ email, password });
             if (error) throw error;
             if (data.user) {
-                showAuthMessage('Login successful!', false);
+                showToast('Welcome back!', 'success');
                 setTimeout(() => window.location.href = 'files.html', 1000);
             }
         } else {
@@ -105,14 +130,15 @@ async function handleAuth(isLogin = true) {
             });
             if (error) throw error;
             if (data.user?.identities?.length === 0) {
-                showAuthMessage('This email is already registered. Please log in.');
+                showToast('Email already registered. Please log in.', 'error');
             } else {
-                showAuthMessage('Account created! Check your email for verification.', false);
+                showToast('Account created! Check your email.', 'success');
             }
         }
     } catch (error) {
         console.error('Auth error:', error);
-        showAuthMessage(error.message);
+        showToast(error.message, 'error');
+        showAuthMessage(error.message, true);
     }
 }
 
@@ -277,6 +303,7 @@ async function loadFiles(searchQuery = '', sortBy = 'name-asc') {
         );
     } catch (error) {
         console.error('Load files error:', error);
+        showToast(`Failed to load files: ${error.message}`, 'error');
         filesList.innerHTML = `<div style="grid-column: 1/-1; color: var(--error); text-align: center;">Error loading files: ${error.message}</div>`;
     }
 }
@@ -346,6 +373,7 @@ async function handlePreview(fileName) {
         };
     } catch (error) {
         console.error('Preview error:', error);
+        showToast(`Preview failed: ${error.message}`, 'error');
         content.innerHTML = `<div style="color: var(--error);">Failed to load preview: ${error.message}</div>`;
     }
 }
@@ -392,7 +420,7 @@ async function handleDownload(fileName) {
         if (url.startsWith('blob:')) URL.revokeObjectURL(url);
     } catch (error) {
         console.error('Download error:', error);
-        alert('Download failed: ' + error.message);
+        showToast(`Download failed: ${error.message}`, 'error');
     }
 }
 
@@ -436,9 +464,10 @@ async function handleDelete(fileName) {
 
             modal.classList.remove('active');
             loadFiles(document.getElementById('search-input')?.value || '');
+            showToast('File deleted successfully');
         } catch (error) {
             console.error('Delete error:', error);
-            alert('Delete failed: ' + error.message);
+            showToast(`Delete failed: ${error.message}`, 'error');
         } finally {
             confirmBtn.disabled = false;
             confirmBtn.textContent = 'Delete';
