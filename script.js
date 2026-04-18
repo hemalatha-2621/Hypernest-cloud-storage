@@ -592,6 +592,7 @@ async function handleUpload(files) {
             }
         } catch (error) {
             console.error(`Upload error (${file.name}):`, error);
+            showToast(`Upload failed for ${file.name}: ${error.message}`, 'error');
             const progEl = document.querySelector(`[data-file-progress="${file.name}"]`);
             if (progEl) {
                 progEl.querySelector('.progress-percentage').textContent = 'Error';
