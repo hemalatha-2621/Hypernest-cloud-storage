@@ -9,9 +9,20 @@ let currentUser = null;
 let currentFiles = [];
 let searchTimeout = null;
 
-// Helper to determine if we should use the local proxy or direct Supabase
-const IS_GITHUB_PAGES = window.location.hostname.includes('github.io');
-const PROXY_PATH = IS_GITHUB_PAGES ? null : (window.location.pathname.includes('.html') ? '' : './');
+// Global flag for backend availability
+let isBackendAvailable = false;
+
+async function checkBackend() {
+    try {
+        const response = await fetch('api/list-proxy?ping=1', { method: 'HEAD' });
+        const contentType = response.headers.get("content-type");
+        isBackendAvailable = response.ok && contentType && contentType.includes("application/json");
+        console.log('Backend presence check:', isBackendAvailable ? 'CONNECTED' : 'NOT FOUND (Static Mode)');
+    } catch (e) {
+        isBackendAvailable = false;
+        console.log('Backend not detected, running in static mode.');
+    }
+}
 
 
 // --- Utility Functions ---
@@ -170,19 +181,20 @@ async function loadFiles(searchQuery = '', sortBy = 'name-asc') {
     if (!filesList) return;
 
     try {
-        // Try proxy list first
+        // Try proxy list first if available
         let result;
-        try {
-            if (IS_GITHUB_PAGES) throw new Error('GitHub Pages: Skipping proxy');
-            const response = await fetch(`api/list-proxy?userId=${currentUser.id}`);
-            const contentType = response.headers.get("content-type");
-            if (response.ok && contentType && contentType.includes("application/json")) {
+        if (isBackendAvailable) {
+            try {
+                const response = await fetch(`api/list-proxy?userId=${currentUser.id}`);
                 result = await response.json();
-            } else {
-                throw new Error('Proxy not available');
+            } catch (e) {
+                console.warn('Proxy call failed, trying direct:', e);
+                isBackendAvailable = false; // Disable for future calls if crashed
             }
-        } catch (e) {
-            console.warn('Backend proxy unavailable, falling back to direct Supabase call:', e);
+        }
+
+        if (!result || !result.success) {
+            console.log('Using direct Supabase list...');
             const { data, error } = await supabase.storage
                 .from(STORAGE_BUCKET)
                 .list(currentUser.id, {
@@ -193,8 +205,6 @@ async function loadFiles(searchQuery = '', sortBy = 'name-asc') {
             if (error) throw error;
             result = { success: true, data };
         }
-
-        if (!result.success) throw new Error(result.error);
 
         currentFiles = result.data || [];
         
@@ -263,26 +273,25 @@ async function handlePreview(fileName) {
 
     try {
         let url;
-        try {
-            if (IS_GITHUB_PAGES) throw new Error('GitHub Pages: Skipping proxy');
-            const response = await fetch('api/sign-proxy', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ 
-                    filePath: `${currentUser.id}/${fileName}`,
-                    expiresIn: 300
-                })
-            });
-            const contentType = response.headers.get("content-type");
-            if (response.ok && contentType && contentType.includes("application/json")) {
+        if (isBackendAvailable) {
+            try {
+                const response = await fetch('api/sign-proxy', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        filePath: `${currentUser.id}/${fileName}`,
+                        expiresIn: 300
+                    })
+                });
                 const result = await response.json();
-                if (!result.success) throw new Error(result.error);
-                url = result.signedUrl;
-            } else {
-                throw new Error('Proxy not available');
+                if (result.success) url = result.signedUrl;
+            } catch (e) {
+                console.warn('Proxy sign failed, trying direct:', e);
             }
-        } catch (e) {
-            console.warn('Backend proxy unavailable, falling back to direct Supabase sign:', e);
+        }
+
+        if (!url) {
+            console.log('Using direct Supabase sign...');
             const { data, error } = await supabase.storage
                 .from(STORAGE_BUCKET)
                 .createSignedUrl(`${currentUser.id}/${fileName}`, 300);
@@ -321,26 +330,25 @@ async function handlePreview(fileName) {
 async function handleDownload(fileName) {
     try {
         let url;
-        try {
-            if (IS_GITHUB_PAGES) throw new Error('GitHub Pages: Skipping proxy');
-            const response = await fetch('api/sign-proxy', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ 
-                    filePath: `${currentUser.id}/${fileName}`,
-                    expiresIn: 60
-                })
-            });
-            const contentType = response.headers.get("content-type");
-            if (response.ok && contentType && contentType.includes("application/json")) {
+        if (isBackendAvailable) {
+            try {
+                const response = await fetch('api/sign-proxy', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        filePath: `${currentUser.id}/${fileName}`,
+                        expiresIn: 60
+                    })
+                });
                 const result = await response.json();
-                if (!result.success) throw new Error(result.error);
-                url = result.signedUrl;
-            } else {
-                throw new Error('Proxy not available');
+                if (result.success) url = result.signedUrl;
+            } catch (e) {
+                console.warn('Proxy download failed, trying direct:', e);
             }
-        } catch (e) {
-            console.warn('Backend proxy unavailable, falling back to direct Supabase download:', e);
+        }
+
+        if (!url) {
+            console.log('Using direct Supabase download...');
             const { data, error } = await supabase.storage
                 .from(STORAGE_BUCKET)
                 .download(`${currentUser.id}/${fileName}`);
@@ -376,22 +384,23 @@ async function handleDelete(fileName) {
         confirmBtn.disabled = true;
         confirmBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Deleting...';
         try {
-            try {
-                if (IS_GITHUB_PAGES) throw new Error('GitHub Pages: Skipping proxy');
-                const response = await fetch('api/delete-proxy', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ filePath: `${currentUser.id}/${fileName}` })
-                });
-                const contentType = response.headers.get("content-type");
-                if (response.ok && contentType && contentType.includes("application/json")) {
+            let deleted = false;
+            if (isBackendAvailable) {
+                try {
+                    const response = await fetch('api/delete-proxy', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ filePath: `${currentUser.id}/${fileName}` })
+                    });
                     const result = await response.json();
-                    if (!result.success) throw new Error(result.error);
-                } else {
-                    throw new Error('Proxy not available');
+                    if (result.success) deleted = true;
+                } catch (e) {
+                    console.warn('Proxy delete failed, trying direct:', e);
                 }
-            } catch (e) {
-                console.warn('Backend proxy unavailable, falling back to direct Supabase delete:', e);
+            }
+
+            if (!deleted) {
+                console.log('Using direct Supabase delete...');
                 const { error } = await supabase.storage
                     .from(STORAGE_BUCKET)
                     .remove([`${currentUser.id}/${fileName}`]);
@@ -446,26 +455,26 @@ async function handleUpload(files) {
 
     const uploadPromises = Array.from(files).map(async file => {
         try {
-            try {
-                if (IS_GITHUB_PAGES) throw new Error('GitHub Pages: Skipping proxy');
-                const formData = new FormData();
-                formData.append('file', file);
-                formData.append('userId', currentUser.id);
+            let uploaded = false;
+            if (isBackendAvailable) {
+                try {
+                    const formData = new FormData();
+                    formData.append('file', file);
+                    formData.append('userId', currentUser.id);
 
-                const response = await fetch('api/upload-proxy', {
-                    method: 'POST',
-                    body: formData
-                });
-
-                const contentType = response.headers.get("content-type");
-                if (response.ok && contentType && contentType.includes("application/json")) {
+                    const response = await fetch('api/upload-proxy', {
+                        method: 'POST',
+                        body: formData
+                    });
                     const result = await response.json();
-                    if (!result.success) throw new Error(result.error);
-                } else {
-                    throw new Error('Proxy not available');
+                    if (result.success) uploaded = true;
+                } catch (e) {
+                    console.warn('Proxy upload failed, trying direct:', e);
                 }
-            } catch (e) {
-                console.warn('Backend proxy unavailable, falling back to direct Supabase upload:', e);
+            }
+
+            if (!uploaded) {
+                console.log('Using direct Supabase upload...');
                 const { error } = await supabase.storage
                     .from(STORAGE_BUCKET)
                     .upload(`${currentUser.id}/${file.name}`, file, {
@@ -585,6 +594,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const logoutBtn = document.getElementById('logout-btn');
     if (logoutBtn) logoutBtn.addEventListener('click', handleLogout);
 
-    // Initial Load
+    // Initial check for backend and load files
+    await checkBackend();
     loadFiles();
 });
