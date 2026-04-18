@@ -165,7 +165,8 @@ async function checkAuth() {
 }
 
 async function handleLogout() {
-    await supabase.auth.signOut();
+    const client = getSupabase();
+    if (client) await client.auth.signOut();
     window.location.href = 'index.html';
 }
 
