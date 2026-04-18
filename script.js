@@ -1,9 +1,11 @@
 const SUPABASE_URL = "https://niyuchsndxijwdvgmghb.supabase.co";
-const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5peXVjaHNuZHhpandkdmdtZ2hiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY1MDQwNzUsImV4cCI6MjA5MjA4MDA3NX0.uBClEYafax91KXSlCDuppfJXhOK8eWmkb18Km2MVfzQ";
+const SUPABASE_ANON_KEY = "sb_publishable_12iHo_t0Ltm9rCSJkqXu_g_KNYO7yYj";
 const STORAGE_BUCKET = "user-files";
 
 // Initialize the Supabase client
-const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const supabase = (window.supabase && window.supabase.createClient) 
+    ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
+    : null;
 
 let currentUser = null;
 let currentFiles = [];
