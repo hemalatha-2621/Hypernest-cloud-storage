@@ -2,10 +2,17 @@ const SUPABASE_URL = "https://niyuchsndxijwdvgmghb.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_12iHo_t0Ltm9rCSJkqXu_g_KNYO7yYj";
 const STORAGE_BUCKET = "user-files";
 
-// Initialize the Supabase client
-const supabase = (window.supabase && window.supabase.createClient) 
-    ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
-    : null;
+let supabase = null;
+
+function getSupabase() {
+    if (supabase) return supabase;
+    if (window.supabase && window.supabase.createClient) {
+        supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        return supabase;
+    }
+    console.error('Supabase library not loaded yet!');
+    return null;
+}
 
 let currentUser = null;
 let currentFiles = [];
@@ -72,7 +79,9 @@ function showUploadMessage(message, isError = true) {
 // --- Auth Functions ---
 
 async function handleAuth(isLogin = true) {
-    const email = document.getElementById('email').value.trim();
+    const client = getSupabase();
+    if (!client) return;
+    const email = document.getElementById('email')?.value.trim();
     const password = document.getElementById('password').value;
     
     if (!email || !password) {
@@ -82,14 +91,14 @@ async function handleAuth(isLogin = true) {
 
     try {
         if (isLogin) {
-            const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+            const { data, error } = await client.auth.signInWithPassword({ email, password });
             if (error) throw error;
             if (data.user) {
                 showAuthMessage('Login successful!', false);
                 setTimeout(() => window.location.href = 'files.html', 1000);
             }
         } else {
-            const { data, error } = await supabase.auth.signUp({ 
+            const { data, error } = await client.auth.signUp({ 
                 email, 
                 password,
                 options: { emailRedirectTo: window.location.origin }
@@ -108,8 +117,10 @@ async function handleAuth(isLogin = true) {
 }
 
 async function checkAuth() {
+    const client = getSupabase();
+    if (!client) return false;
     try {
-        const { data: { user }, error } = await supabase.auth.getUser();
+        const { data: { user }, error } = await client.auth.getUser();
         if (error || !user) {
             if (window.location.pathname.includes('files.html')) {
                 window.location.href = 'index.html';
@@ -198,7 +209,9 @@ async function loadFiles(searchQuery = '', sortBy = 'name-asc') {
 
         if (!result || !result.success) {
             console.log('Using direct Supabase list...');
-            const { data, error } = await supabase.storage
+            const client = getSupabase();
+            if (!client) throw new Error('Supabase client not ready');
+            const { data, error } = await client.storage
                 .from(STORAGE_BUCKET)
                 .list(currentUser.id, {
                     limit: 100,
@@ -295,7 +308,9 @@ async function handlePreview(fileName) {
 
         if (!url) {
             console.log('Using direct Supabase sign...');
-            const { data, error } = await supabase.storage
+            const client = getSupabase();
+            if (!client) throw new Error('Supabase client not ready');
+            const { data, error } = await client.storage
                 .from(STORAGE_BUCKET)
                 .createSignedUrl(`${currentUser.id}/${fileName}`, 300);
             if (error) throw error;
@@ -352,7 +367,9 @@ async function handleDownload(fileName) {
 
         if (!url) {
             console.log('Using direct Supabase download...');
-            const { data, error } = await supabase.storage
+            const client = getSupabase();
+            if (!client) throw new Error('Supabase client not ready');
+            const { data, error } = await client.storage
                 .from(STORAGE_BUCKET)
                 .download(`${currentUser.id}/${fileName}`);
             if (error) throw error;
@@ -404,7 +421,9 @@ async function handleDelete(fileName) {
 
             if (!deleted) {
                 console.log('Using direct Supabase delete...');
-                const { error } = await supabase.storage
+                const client = getSupabase();
+                if (!client) throw new Error('Supabase client not ready');
+                const { error } = await client.storage
                     .from(STORAGE_BUCKET)
                     .remove([`${currentUser.id}/${fileName}`]);
                 if (error) throw error;
@@ -478,7 +497,9 @@ async function handleUpload(files) {
 
             if (!uploaded) {
                 console.log('Using direct Supabase upload...');
-                const { error } = await supabase.storage
+                const client = getSupabase();
+                if (!client) throw new Error('Supabase client not ready');
+                const { error } = await client.storage
                     .from(STORAGE_BUCKET)
                     .upload(`${currentUser.id}/${file.name}`, file, {
                         cacheControl: '3600',
