@@ -33,6 +33,22 @@ function showToast(message, type = 'success') {
 
     container.appendChild(toast);
 
+    // Auto-setup tip for RLS errors
+    if (message.toLowerCase().includes('row-level security') || message.toLowerCase().includes('rls')) {
+        const tip = document.createElement('div');
+        tip.className = 'toast toast-error';
+        tip.style.marginTop = '8px';
+        tip.innerHTML = `
+            <i class="fas fa-lightbulb"></i>
+            <div class="toast-message">Tip: Please run the SQL commands from SUPABASE_DASHBOARD_SETUP.md in your dashboard.</div>
+        `;
+        container.appendChild(tip);
+        setTimeout(() => {
+            tip.style.animation = 'toastOut 0.4s forwards';
+            setTimeout(() => tip.remove(), 400);
+        }, 8000);
+    }
+
     setTimeout(() => {
         toast.style.animation = 'toastOut 0.4s forwards';
         setTimeout(() => toast.remove(), 400);
