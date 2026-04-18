@@ -14,7 +14,8 @@ let isBackendAvailable = false;
 
 async function checkBackend() {
     try {
-        const response = await fetch('api/list-proxy?ping=1', { method: 'HEAD' });
+        // Use a simple GET ping that would return JSON on success
+        const response = await fetch('api/list-proxy?ping=1');
         const contentType = response.headers.get("content-type");
         isBackendAvailable = response.ok && contentType && contentType.includes("application/json");
         console.log('Backend presence check:', isBackendAvailable ? 'CONNECTED' : 'NOT FOUND (Static Mode)');

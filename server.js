@@ -65,6 +65,11 @@ app.get('/api/list-proxy', async (req, res) => {
         const userId = req.query.userId;
         const bucketName = 'user-files';
 
+        // Lightweight ping check
+        if (req.query.ping) {
+            return res.json({ success: true, ping: 'pong' });
+        }
+
         if (!userId) {
             return res.status(400).json({ error: 'Missing userId' });
         }
