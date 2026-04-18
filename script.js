@@ -165,9 +165,28 @@ async function loadFiles(searchQuery = '', sortBy = 'name-asc') {
     if (!filesList) return;
 
     try {
-        // Use proxy list to bypass RLS issues
-        const response = await fetch(`/api/list-proxy?userId=${currentUser.id}`);
-        const result = await response.json();
+        // Try proxy list first
+        let result;
+        try {
+            const response = await fetch(`/api/list-proxy?userId=${currentUser.id}`);
+            const contentType = response.headers.get("content-type");
+            if (response.ok && contentType && contentType.includes("application/json")) {
+                result = await response.json();
+            } else {
+                throw new Error('Proxy not available');
+            }
+        } catch (e) {
+            console.warn('Backend proxy unavailable, falling back to direct Supabase call:', e);
+            const { data, error } = await supabase.storage
+                .from(STORAGE_BUCKET)
+                .list(currentUser.id, {
+                    limit: 100,
+                    offset: 0,
+                    sortBy: { column: 'name', order: 'asc' }
+                });
+            if (error) throw error;
+            result = { success: true, data };
+        }
 
         if (!result.success) throw new Error(result.error);
 
@@ -237,19 +256,32 @@ async function handlePreview(fileName) {
     modal.classList.add('active');
 
     try {
-        const response = await fetch('/api/sign-proxy', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ 
-                filePath: `${currentUser.id}/${fileName}`,
-                expiresIn: 300
-            })
-        });
-
-        const result = await response.json();
-        if (!result.success) throw new Error(result.error);
-
-        const url = result.signedUrl;
+        let url;
+        try {
+            const response = await fetch('/api/sign-proxy', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    filePath: `${currentUser.id}/${fileName}`,
+                    expiresIn: 300
+                })
+            });
+            const contentType = response.headers.get("content-type");
+            if (response.ok && contentType && contentType.includes("application/json")) {
+                const result = await response.json();
+                if (!result.success) throw new Error(result.error);
+                url = result.signedUrl;
+            } else {
+                throw new Error('Proxy not available');
+            }
+        } catch (e) {
+            console.warn('Backend proxy unavailable, falling back to direct Supabase sign:', e);
+            const { data, error } = await supabase.storage
+                .from(STORAGE_BUCKET)
+                .createSignedUrl(`${currentUser.id}/${fileName}`, 300);
+            if (error) throw error;
+            url = data.signedUrl;
+        }
         const ext = fileName.split('.').pop().toLowerCase();
 
         if (['jpg', 'jpeg', 'png', 'gif', 'svg', 'webp'].includes(ext)) {
@@ -281,26 +313,42 @@ async function handlePreview(fileName) {
 
 async function handleDownload(fileName) {
     try {
-        const response = await fetch('/api/sign-proxy', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ 
-                filePath: `${currentUser.id}/${fileName}`,
-                expiresIn: 60
-            })
-        });
+        let url;
+        try {
+            const response = await fetch('/api/sign-proxy', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    filePath: `${currentUser.id}/${fileName}`,
+                    expiresIn: 60
+                })
+            });
+            const contentType = response.headers.get("content-type");
+            if (response.ok && contentType && contentType.includes("application/json")) {
+                const result = await response.json();
+                if (!result.success) throw new Error(result.error);
+                url = result.signedUrl;
+            } else {
+                throw new Error('Proxy not available');
+            }
+        } catch (e) {
+            console.warn('Backend proxy unavailable, falling back to direct Supabase download:', e);
+            const { data, error } = await supabase.storage
+                .from(STORAGE_BUCKET)
+                .download(`${currentUser.id}/${fileName}`);
+            if (error) throw error;
+            url = URL.createObjectURL(data);
+        }
 
-        const result = await response.json();
-        if (!result.success) throw new Error(result.error);
-
-        // Open the signed URL in a new tab for download
+        // Open the URL for download
         const a = document.createElement('a');
-        a.href = result.signedUrl;
+        a.href = url;
         a.download = fileName;
         a.style.display = 'none';
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
+        if (url.startsWith('blob:')) URL.revokeObjectURL(url);
     } catch (error) {
         console.error('Download error:', error);
         alert('Download failed: ' + error.message);
@@ -320,14 +368,26 @@ async function handleDelete(fileName) {
         confirmBtn.disabled = true;
         confirmBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Deleting...';
         try {
-            const response = await fetch('/api/delete-proxy', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ filePath: `${currentUser.id}/${fileName}` })
-            });
-
-            const result = await response.json();
-            if (!result.success) throw new Error(result.error);
+            try {
+                const response = await fetch('/api/delete-proxy', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ filePath: `${currentUser.id}/${fileName}` })
+                });
+                const contentType = response.headers.get("content-type");
+                if (response.ok && contentType && contentType.includes("application/json")) {
+                    const result = await response.json();
+                    if (!result.success) throw new Error(result.error);
+                } else {
+                    throw new Error('Proxy not available');
+                }
+            } catch (e) {
+                console.warn('Backend proxy unavailable, falling back to direct Supabase delete:', e);
+                const { error } = await supabase.storage
+                    .from(STORAGE_BUCKET)
+                    .remove([`${currentUser.id}/${fileName}`]);
+                if (error) throw error;
+            }
 
             modal.classList.remove('active');
             loadFiles(document.getElementById('search-input')?.value || '');
@@ -377,18 +437,34 @@ async function handleUpload(files) {
 
     const uploadPromises = Array.from(files).map(async file => {
         try {
-            // Use proxy upload to bypass RLS issues
-            const formData = new FormData();
-            formData.append('file', file);
-            formData.append('userId', currentUser.id);
+            try {
+                // Try proxy upload first
+                const formData = new FormData();
+                formData.append('file', file);
+                formData.append('userId', currentUser.id);
 
-            const response = await fetch('/api/upload-proxy', {
-                method: 'POST',
-                body: formData
-            });
+                const response = await fetch('/api/upload-proxy', {
+                    method: 'POST',
+                    body: formData
+                });
 
-            const result = await response.json();
-            if (!result.success) throw new Error(result.error);
+                const contentType = response.headers.get("content-type");
+                if (response.ok && contentType && contentType.includes("application/json")) {
+                    const result = await response.json();
+                    if (!result.success) throw new Error(result.error);
+                } else {
+                    throw new Error('Proxy not available');
+                }
+            } catch (e) {
+                console.warn('Backend proxy unavailable, falling back to direct Supabase upload:', e);
+                const { error } = await supabase.storage
+                    .from(STORAGE_BUCKET)
+                    .upload(`${currentUser.id}/${file.name}`, file, {
+                        cacheControl: '3600',
+                        upsert: true
+                    });
+                if (error) throw error;
+            }
             
             // Success: update progress to 100% and then remove after delay
             const progEl = document.querySelector(`[data-file-progress="${file.name}"]`);
