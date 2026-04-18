@@ -278,6 +278,13 @@ async function loadFiles(searchQuery = '', sortBy = 'name-asc') {
 
         currentFiles = result.data || [];
         
+        // Update storage stats
+        const totalSize = currentFiles.reduce((sum, f) => sum + (f.metadata?.size || 0), 0);
+        const fileCountEl = document.getElementById('file-count');
+        const totalUsageEl = document.getElementById('total-usage');
+        if (fileCountEl) fileCountEl.textContent = currentFiles.length;
+        if (totalUsageEl) totalUsageEl.textContent = formatFileSize(totalSize);
+
         // Filter by search query
         let filteredFiles = currentFiles.filter(file => 
             file.name.toLowerCase().includes(searchQuery.toLowerCase())
