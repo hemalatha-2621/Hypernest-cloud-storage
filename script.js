@@ -168,7 +168,7 @@ async function loadFiles(searchQuery = '', sortBy = 'name-asc') {
         // Try proxy list first
         let result;
         try {
-            const response = await fetch(`/api/list-proxy?userId=${currentUser.id}`);
+            const response = await fetch(`api/list-proxy?userId=${currentUser.id}`);
             const contentType = response.headers.get("content-type");
             if (response.ok && contentType && contentType.includes("application/json")) {
                 result = await response.json();
@@ -258,7 +258,7 @@ async function handlePreview(fileName) {
     try {
         let url;
         try {
-            const response = await fetch('/api/sign-proxy', {
+            const response = await fetch('api/sign-proxy', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ 
@@ -315,7 +315,7 @@ async function handleDownload(fileName) {
     try {
         let url;
         try {
-            const response = await fetch('/api/sign-proxy', {
+            const response = await fetch('api/sign-proxy', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ 
@@ -369,7 +369,7 @@ async function handleDelete(fileName) {
         confirmBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Deleting...';
         try {
             try {
-                const response = await fetch('/api/delete-proxy', {
+                const response = await fetch('api/delete-proxy', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ filePath: `${currentUser.id}/${fileName}` })
@@ -443,7 +443,7 @@ async function handleUpload(files) {
                 formData.append('file', file);
                 formData.append('userId', currentUser.id);
 
-                const response = await fetch('/api/upload-proxy', {
+                const response = await fetch('api/upload-proxy', {
                     method: 'POST',
                     body: formData
                 });
